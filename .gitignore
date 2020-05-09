@@ -1,0 +1,5 @@
+user_management/migrations/*
+venv/*
+.idea/*
+*.pyc
+ekanek/conf.py
