@@ -13,8 +13,7 @@ from ekanek.conf import (
     S3_BUCKET,
     S3_LOCATION,
     DESTINATION_FILE_BASE_PATH,
-    UPLOAD_DIR,
-    COMPRESSED_UPLOAD_DIR
+    UPLOAD_DIR
     )
 from user_management.response import SuccessResponse, ErrorResponse
 from user_management.constant import Success, Error
@@ -56,10 +55,8 @@ def add_user(data):
 s3_conn = boto3.client('s3', aws_access_key_id=AWS_ACCESS_KEY, aws_secret_access_key=AWS_SECRET_KEY)
 
 
-def upload_to_s3(file, file_name, upload_dir=UPLOAD_DIR):
+def upload_to_s3(file, file_name, upload_dir=UPLOAD_DIR, acl='public-read'):
     try:
-        acl = 'public-read'
-
         s3_conn.upload_fileobj(
             file,
             S3_BUCKET,
@@ -124,7 +121,7 @@ def create_compressed_file(file_path, file_name):
                 shutil.copyfileobj(f_in, f_out)
 
         with open(destination_filepath, 'rb') as c_file:
-            return upload_to_s3(c_file, compressed_filename, COMPRESSED_UPLOAD_DIR)
+            return upload_to_s3(c_file, compressed_filename)
 
     except Exception as e:
         raise Exception(Error.FILE_COMPRESS_ERROR + str(e))
@@ -141,31 +138,27 @@ def get_file_size_in_gb(file_path):
 
 def upload(user_id, file_path, file_name, description):
     try:
-        with open(file_path, 'rb') as file:
+        file_type = None
+        s3_url = None
 
-            s3_url = upload_to_s3(file, file_name)
-            file_type = None
+        file_type = os.path.splitext(file_name)[1]
+        file_size_in_gb = get_file_size_in_gb(file_path)
 
-            if s3_url:
-                file_type = os.path.splitext(file_name)[1]
-                file_size_in_gb = get_file_size_in_gb(file_path)
-                file_obj = FileSystem.objects.create(user_id=user_id, s3_file_url=s3_url,
-                                                     title=file_name, file_type=file_type,
-                                                     file_size_in_gb=file_size_in_gb)
+        if file_size_in_gb > 1:
+            s3_url = create_compressed_file(file_path, file_name)
+        else:
+            with open(file_path, 'rb') as file:
+                s3_url = upload_to_s3(file, file_name)
 
-                if description:
-                    file_obj.description = description
+        file_obj = FileSystem.objects.create(user_id=user_id, s3_file_url=s3_url,
+                                             title=file_name, file_type=file_type,
+                                             file_size_in_gb=file_size_in_gb)
+        if description:
+            file_obj.description = description
+            file_obj.save()
 
-                if file_size_in_gb > 1:
-                    compressed_url = create_compressed_file(file_path, file_name)
-                    if compressed_url:
-                        file_obj.compressed_s3_file_url = compressed_url
-
-                file_obj.save()
-                serialized_file_obj = FileSystemSerializer(file_obj)
-                return SuccessResponse(msg=Success.FILE_UPLOAD_SUCCESS, results=serialized_file_obj.data)
-            else:
-                return ErrorResponse(msg=Error.FILE_UPLOAD_ERROR)
+        serialized_file_obj = FileSystemSerializer(file_obj)
+        return SuccessResponse(msg=Success.FILE_UPLOAD_SUCCESS, results=serialized_file_obj.data)
 
     except Exception as e:
         logger.error(Error.FILE_UPLOAD_ERROR + str(e))

@@ -13,5 +13,4 @@ class FileSystem(models.Model):
     file_size_in_gb = models.FloatField(blank=False, null=False, default=0)
     s3_file_url = models.URLField(max_length=500)
     user = models.ForeignKey(User, default=1, on_delete=models.CASCADE)
-    compressed_s3_file_url = models.URLField(max_length=500, null=True, blank=True)
     tiny_url = models.URLField(max_length=200, null=True, blank=True)

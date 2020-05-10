@@ -5,4 +5,4 @@ S3_LOCATION = ""  # Something like this - https://{0}.s3.us-east-2.amazonaws.com
 
 DESTINATION_FILE_BASE_PATH = ""
 UPLOAD_DIR = ""
-COMPRESSED_UPLOAD_DIR = ""
+
